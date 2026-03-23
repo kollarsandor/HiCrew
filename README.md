@@ -1,21 +1,16 @@
 # HiCrew
 
-<p align="center">
-  <b>This work has been accepted by ICME 2026! 🎉</b><br>
+<p align="center" style="font-size: 28px; font-weight: bold; color: #2e86ab; margin: 20px 0;">
+  Our work has been accepted by ICME 2026! 🎉
 </p>
 
-## Overview / Method
+## Overview
 
 The following image illustrates the case study and overall method of our approach:
 
-![Method / Case](assets/case.png)
-
-
-## Performance
-
-Here are our experimental results compared with other models:
-
-![Performance Comparison](assets/performance.png)
+<div style="text-align: center;">
+  <img src="assets/case.png" width="70%" />
+</div>
 
 
 ## Installation
@@ -27,3 +22,9 @@ pip install crewai
 # TODO: Teammates will add other dependencies here later
 ```
 
+## Performance
+
+Here are our experimental results compared with other models:
+<div style="text-align: center;">
+  <img src="assets/performance.png" width="50%" />
+</div>
