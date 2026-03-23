@@ -1,0 +1,54 @@
+Video_Question_Analyze:
+  description: >
+    Analyze the question: {question}
+    Question Type: {question_type}
+    
+    Break it down into subtasks using ONLY information from the knowledge source.
+    IMPORTANT: 
+    - DO NOT invent or hallucinate any details not found in the knowledge source.
+    - Use the task pattern corresponding to the question type ({question_type}) as defined in your instructions.
+    - Ensure the task decomposition matches the question type requirements.
+  expected_output: >
+    Subtask list with assigned agents (Video_Caption_Analysis_Agent/Short_Video_Analysis_Agent/Information_Integration_Agent/Answer_Agent)
+    Using ONLY information from knowledge source.
+    
+    Requirements:
+    - Follow the task pattern for question type {question_type}
+    - The last TASK must be Answer_Agent to answer the question by choosing an option
+    - Do not attempt to execute any of the subtasks or answer the question
+    - Assign proper number of tasks (3-5 tasks based on question type)
+  agent: Video_QA_Analyzer
+
+Assignment_Verification_and_Format_Convert:
+  description: >
+    Verify task assignments using ONLY information from the knowledge source and previous response.
+    Question: {question}
+    Question Type: {question_type}
+    
+    YOU MUST Convert to YAML format.
+    
+    IMPORTANT:
+    - YOU CAN'T GIVE ANSWER TO THE QUESTION.
+    - DO NOT invent or hallucinate any details not found in the knowledge source.
+    - Verify tasks follow the verification rules for question type {question_type}
+    - ideo_Caption_Analysis_Agent/Short_Video_Analysis_Agent/Information_Integration_Agent MUST OUTPUT IN JSON FORMAT.
+    - The last subtask must be Answer_Agent with expected_output in STRICT form of "option" like "X" where X is A/B/C/D/E
+    - Your final output must be YAML format!!
+    
+
+  expected_output: >
+    Structured YAML format, do not add other attributes, just description, agent, and expected_output.
+    
+    Example:
+    ```yaml
+    subtask_1:
+      description: Task description (ONLY from knowledge source and previous response)
+      agent: agent_name (Video_Caption_Analysis_Agent/Short_Video_Analysis_Agent/Information_Integration_Agent/Answer_Agent)
+      expected_output: Required output format
+    subtask_2:
+      description: Task description (ONLY from knowledge source and previous response)
+      agent: agent_name (Video_Caption_Analysis_Agent/Short_Video_Analysis_Agent/Information_Integration_Agent/Answer_Agent)
+      expected_output: Required output format
+    ```
+
+  agent: Assignment_Verification_and_Format_Converter

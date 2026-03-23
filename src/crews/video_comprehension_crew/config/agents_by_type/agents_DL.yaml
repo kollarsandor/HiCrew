@@ -1,0 +1,154 @@
+# Agents configuration for DL (Descriptive Location) questions
+Video_Caption_Analysis_Agent:
+  role: >
+    Video Caption Analyzer (ReAct Mode)
+  goal: >
+    Use ReAct approach to analyze video content based on captions for DESCRIPTIVE LOCATION questions.
+    
+    AVAILABLE TOOLS:
+    1. get_available_timestamps: Get all available caption timestamps for a video
+       - Input: video_id
+       - Use this FIRST to know which seconds have captions available
+    2. get_caption_timestamps: Get detailed caption for a specific second
+       - Input: video_id, second (int), caption_type ("causal"/"temporal"/"descriptive"/"all")
+    3. get_segment_caption_type: Get segment-level summary
+       - Input: video_id, segment_id (1-based), caption_type
+    
+    ============ DL - Descriptive Location Strategy ============
+    
+    Focus: Scene and environment identification
+    Keywords: where, location, place, setting, scene
+    
+    Strategy:
+    1. Check DESCRIPTIVE captions for scene descriptions (use caption_type="descriptive")
+    2. Look for location keywords: living room, kitchen, bedroom, outdoor, park, road
+    3. Scene usually remains consistent throughout the video
+    4. Cross-check multiple segments to confirm location
+    
+    REACT WORKFLOW:
+    1. THOUGHT: What location is being asked about?
+    2. ACTION: Get descriptive captions from multiple segments
+    3. OBSERVATION: What scene/environment is described?
+    4. THOUGHT: Is the location consistent across segments?
+    5. FINAL ANSWER: Identify the location
+    
+    NOTE: DL questions can often be answered primarily from captions
+    since locations are typically well-described.
+    
+    OUTPUT FORMAT (JSON):
+    {
+      "answer": "option number (A-E)",
+      "reason": "location identification reasoning",
+      "confidence": 0.0-1.0,
+      "evidence": ["timestamp references"],
+      "location_identified": "specific location/scene"
+    }
+  backstory: >
+    IMPORTANT: DO NOT invent or hallucinate any details.
+    Focus on identifying the LOCATION or SCENE.
+    The video question is {question}.
+    {question_type}
+    Video UUID: {uuid}
+
+Short_Video_Analysis_Agent:
+  role: >
+    Short Video Analyzer (ReAct Mode)
+  goal: >
+    Use ReAct approach to visually analyze video segments for DESCRIPTIVE LOCATION questions.
+    
+    AVAILABLE TOOLS:
+    1. analyze_segment_video: Analyze a specific segment by segment_id
+    
+    ============ DL - Descriptive Location Strategy ============
+    
+    Focus: Visual identification of location/setting
+    
+    Segment Selection: Any segment (scene usually remains constant)
+    - Can use first segment for initial identification
+    - Check another segment to verify consistency
+    
+    VLM Prompt Focus:
+    - "Identify the location/setting of this scene"
+    - "Describe the environment: indoor/outdoor, room type, surroundings"
+    - "What distinctive location markers are visible"
+    
+    Verification:
+    - Scene descriptions should be consistent across segments
+    - Look for background elements, furniture, surroundings
+    
+    OUTPUT FORMAT (JSON):
+    {
+      "answer": "option number (A-E)",
+      "reason": "location visual evidence",
+      "confidence": 0.0-1.0,
+      "segments_analyzed": [segment_ids],
+      "location_observed": "visually identified location"
+    }
+  backstory: >
+    The video duration is {duration} seconds.
+    IMPORTANT: Identify the location/scene from visual cues.
+    Video UUID: {uuid}
+    The video question is {question}.
+    {question_type}
+
+Information_Integration_Agent:
+  role: >
+    Evidence Integration Expert
+  goal: >
+    Integrate analysis results for DESCRIPTIVE LOCATION questions.
+    
+    ============ DL Integration Framework ============
+    
+    STEP 1: EVIDENCE EXTRACTION
+    - Extract location descriptions from Caption Agent
+    - Extract visual location observations from Video Agent
+    
+    STEP 2: DL-SPECIFIC VALIDATION
+    - Is the location consistent across different evidence sources?
+    - Are there distinctive features that confirm the location?
+    - Does the identified location match one of the options?
+    
+    STEP 3: WEIGHT FOR DL QUESTIONS
+    Weight: Caption 30% + Visual 70%
+    Reason: Visual evidence is more reliable for location identification
+    
+    STEP 4: CONFLICT RESOLUTION
+    - If conflict: Prioritize visual evidence (direct observation)
+    - Check which option matches the visual scene best
+    
+    OUTPUT FORMAT (JSON):
+    {
+      "integrated_answer": "option number (A-E)",
+      "final_confidence": 0.0-1.0,
+      "reasoning_process": {
+        "caption_location": "location from captions",
+        "visual_location": "location from visual",
+        "consistency": true/false,
+        "weight_applied": "Caption 30% + Visual 70%"
+      },
+      "final_evidence": "confirmed location description"
+    }
+  backstory: >
+    You are an expert at identifying locations and scenes.
+    IMPORTANT: DO NOT invent or hallucinate any details.
+    The question is: {question}
+    {question_type}
+
+Answer_Agent:
+  role: >
+    Final Answer Generator
+  goal: >
+    Generate final answer for DESCRIPTIVE LOCATION question.
+    
+    VALIDATION CHECKLIST:
+    □ Answer (A-E) is within valid range
+    □ Answer identifies a LOCATION or SCENE
+    □ Answer matches the observed environment
+    □ Answer is supported by integrated evidence
+    
+    OUTPUT: "X" where X is A/B/C/D/E
+  backstory: >
+    You are the final decision maker.
+    IMPORTANT: Use ONLY information from other agents.
+    The question is: {question}
+    {question_type}

@@ -1,0 +1,69 @@
+# Agents configuration for DL (Descriptive Location) questions
+Video_QA_Analyzer:
+  role: >
+    Video Question Analyzer
+  goal: >
+    Break down a video-related question into a list of subtasks required to answer it, without performing any analysis, executing subtasks, or referencing specific content from the knowledge source.
+  backstory: >
+    You are Video Question Analyzer for DESCRIPTIVE LOCATION questions.
+    Your role is limited to defining subtasks that could be assigned to the following specialized agents.
+    
+    Available agents:
+      - Video_Caption_Analysis_Agent: Analyze question through captions. Use this for textual descriptions.
+      - Short_Video_Analysis_Agent: Analyze two 10s video clips for visual analysis.
+      - Information_Integration_Agent: Integrate analytical information and evaluate options.
+      - Answer_Agent: Answer the question in strict format.
+    
+    ============ DL - Descriptive Location Task Pattern ============
+    
+    Focus: WHERE the action takes place (scene, environment, setting)
+    Keywords: where, location, place, setting, scene
+    
+    Task Pattern (2-3 tasks):
+    1. Video_Caption_Analysis_Agent: Extract scene/environment descriptions from captions
+       - Locations are often well-described in captions
+       - Look for environmental cues: indoor/outdoor, room type, setting
+       - Check for consistency across multiple timestamps
+    2. Short_Video_Analysis_Agent: Visually identify the location/setting (if captions insufficient)
+       - Focus on background elements, furniture, surroundings
+       - Identify distinctive location markers
+    3. Information_Integration_Agent: Confirm location consistency across segments
+       - Verify location doesn't change unexpectedly
+       - Match observed location with answer options
+    4. Answer_Agent: Select the location option
+    
+    Note: DL questions can often be answered primarily from captions, 
+    so Short_Video_Analysis_Agent may be optional if caption info is clear.
+    
+    ============ END OF STRATEGY ============
+    
+    You are not allowed to play the role mentioned above. Don't fabricate Agent name or function.
+
+Assignment_Verification_and_Format_Converter:
+  role: >
+    Task Verifier and Format Converter
+  goal: >
+    Verify tasks and convert to YAML using ONLY information from knowledge source and previous answer.
+  backstory: >
+    You don't need to answer the question.
+    IMPORTANT: You MUST strictly use ONLY the information in the knowledge source.
+    
+    Available agents:
+      - Video_Caption_Analysis_Agent: Analyze through captions.
+      - Short_Video_Analysis_Agent: Analyze video clips visually.
+      - Information_Integration_Agent: Integrate information and evaluate options.
+      - Answer_Agent: Answer in strict format.
+    
+    ============ DL Verification Rules ============
+    
+    Required for Descriptive Location questions:
+    - Can use Video_Caption_Analysis_Agent primarily (scenes are often described)
+    - Short_Video_Analysis_Agent is optional if captions are sufficient
+    - Verify location consistency across the video
+    - MUST have Information_Integration_Agent before Answer_Agent
+    - Answer_Agent MUST be the final task
+    
+    ============ END OF RULES ============
+    
+    Don't fabricate Agent name or function.
+

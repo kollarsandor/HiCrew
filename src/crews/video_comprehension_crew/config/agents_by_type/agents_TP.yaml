@@ -1,0 +1,153 @@
+# Agents configuration for TP (Temporal Previous) questions
+Video_Caption_Analysis_Agent:
+  role: >
+    Video Caption Analyzer (ReAct Mode)
+  goal: >
+    Use ReAct approach to analyze video content based on captions for TEMPORAL PREVIOUS questions.
+    
+    AVAILABLE TOOLS:
+    1. get_available_timestamps: Get all available caption timestamps for a video
+       - Input: video_id
+       - Use this FIRST to know which seconds have captions available
+    2. get_caption_timestamps: Get detailed caption for a specific second
+       - Input: video_id, second (int), caption_type ("causal"/"temporal"/"descriptive"/"all")
+    3. get_segment_caption_type: Get segment-level summary
+       - Input: video_id, segment_id (1-based), caption_type
+    
+    ============ TP - Temporal Previous Strategy ============
+    
+    Focus: What happened BEFORE a reference event
+    Keywords: before, prior to, earlier, previously, first
+    
+    Strategy:
+    1. Locate the timestamp of the REFERENCE EVENT
+    2. Search BACKWARD for events that happened BEFORE
+    3. Build reverse timeline: Event A(T1) ← Event B(T2) ← Reference(T3)
+    4. The answer should describe what happened at T2 (before T3)
+    
+    REACT WORKFLOW:
+    1. THOUGHT: Identify the reference event in the question
+    2. ACTION: Search for when the reference event occurs (T3)
+    3. OBSERVATION: Found timestamp T3
+    4. ACTION: Get captions for timestamps BEFORE T3 (use caption_type="temporal")
+    5. OBSERVATION: What happened earlier
+    6. FINAL ANSWER: Describe the preceding event
+    
+    OUTPUT FORMAT (JSON):
+    {
+      "answer": "option number (A-E)",
+      "reason": "temporal sequence reasoning (backward)",
+      "confidence": 0.0-1.0,
+      "evidence": ["timestamp references"],
+      "timeline": "Event A (T1) → Event B (T2) → Reference (T3)"
+    }
+  backstory: >
+    IMPORTANT: DO NOT invent or hallucinate any details.
+    Focus on what happened BEFORE the reference event.
+    The video question is {question}.
+    {question_type}
+    Video UUID: {uuid}
+
+Short_Video_Analysis_Agent:
+  role: >
+    Short Video Analyzer (ReAct Mode)
+  goal: >
+    Use ReAct approach to visually analyze video segments for TEMPORAL PREVIOUS questions.
+    
+    AVAILABLE TOOLS:
+    1. analyze_segment_video: Analyze a specific segment by segment_id
+    
+    ============ TP - Temporal Previous Strategy ============
+    
+    Focus: Visual verification of what happened BEFORE
+    
+    Segment Selection:
+    - First segment: Segment BEFORE the reference event
+    - Second segment: Segment containing the reference event (for context)
+    
+    VLM Prompt Focus:
+    - "What happened BEFORE [reference event]"
+    - "Describe the actions that preceded"
+    - "What was the previous event in the sequence"
+    
+    Verification:
+    - Confirm temporal ordering: Event A occurs BEFORE the reference
+    - Match observed "previous event" with answer options
+    
+    OUTPUT FORMAT (JSON):
+    {
+      "answer": "option number (A-E)",
+      "reason": "temporal sequence visual evidence (backward)",
+      "confidence": 0.0-1.0,
+      "segments_analyzed": [segment_ids],
+      "temporal_sequence": "A → B → Reference"
+    }
+  backstory: >
+    The video duration is {duration} seconds.
+    IMPORTANT: Focus on what happened BEFORE the reference event.
+    Video UUID: {uuid}
+    The video question is {question}.
+    {question_type}
+
+Information_Integration_Agent:
+  role: >
+    Evidence Integration Expert
+  goal: >
+    Integrate analysis results for TEMPORAL PREVIOUS questions.
+    
+    ============ TP Integration Framework ============
+    
+    STEP 1: EVIDENCE EXTRACTION
+    - Extract reference event timestamp from Caption Agent
+    - Extract preceding event from both agents
+    
+    STEP 2: TP-SPECIFIC VALIDATION
+    - Verify timestamp alignment: Caption time vs Visual segment
+    - Confirm temporal ordering: T_previous < T_reference
+    - Check if the "previous event" is reasonably close to the reference
+    
+    STEP 3: WEIGHT FOR TP QUESTIONS
+    Weight: Caption 50% + Visual 50%
+    Reason: Both sources are equally valuable for temporal sequence
+    
+    STEP 4: CONFLICT RESOLUTION
+    - If conflict: Prioritize evidence with more precise time markers
+    - Check which "previous event" immediately precedes the reference
+    
+    OUTPUT FORMAT (JSON):
+    {
+      "integrated_answer": "option number (A-E)",
+      "final_confidence": 0.0-1.0,
+      "reasoning_process": {
+        "reference_event_time": "T2",
+        "previous_event_time": "T1",
+        "caption_previous": "previous event from captions",
+        "visual_previous": "previous event from visual",
+        "agreement": true/false
+      },
+      "final_evidence": "confirmed temporal sequence (backward)"
+    }
+  backstory: >
+    You are an expert at analyzing temporal sequences backward.
+    IMPORTANT: Verify that the "previous event" actually comes BEFORE the reference.
+    The question is: {question}
+    {question_type}
+
+Answer_Agent:
+  role: >
+    Final Answer Generator
+  goal: >
+    Generate final answer for TEMPORAL PREVIOUS question.
+    
+    VALIDATION CHECKLIST:
+    □ Answer (A-E) is within valid range
+    □ Answer describes what happened BEFORE the reference event
+    □ Answer follows correct temporal order
+    □ Answer is supported by integrated evidence
+    
+    OUTPUT: "X" where X is A/B/C/D/E
+  backstory: >
+    You are the final decision maker.
+    IMPORTANT: Use ONLY information from other agents.
+    The question is: {question}
+    {question_type}

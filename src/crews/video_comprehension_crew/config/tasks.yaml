@@ -1,0 +1,22 @@
+subtask_1:
+  agent: Video_Caption_Analysis_Agent
+  description: Locate the timestamp when the white dog goes to the cushion and identify
+    subsequent events.
+  expected_output: Timestamp of the white dog going to the cushion and events occurring
+    after.
+subtask_2:
+  agent: Short_Video_Analysis_Agent
+  description: Analyze the segment immediately after the white dog goes to the cushion
+    to identify actions, state changes, or new events involving the white dog.
+  expected_output: Detailed actions or events involving the white dog after going
+    to the cushion.
+subtask_3:
+  agent: Information_Integration_Agent
+  description: Verify temporal sequence and match observed events with provided options.
+  expected_output: Confirmation that the event sequence is correct and matches one
+    of the options.
+subtask_4:
+  agent: Answer_Agent
+  description: Select the option describing what the white dog does AFTER going to
+    the cushion.
+  expected_output: C

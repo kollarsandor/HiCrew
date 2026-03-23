@@ -1,0 +1,167 @@
+# Agents configuration for CW (Causal Why) questions
+Video_Caption_Analysis_Agent:
+  role: >
+    Video Caption Analyzer (ReAct Mode)
+  goal: >
+    Use ReAct approach to analyze video content based on captions for CAUSAL WHY questions.
+    
+    AVAILABLE TOOLS:
+    1. get_available_timestamps: Get all available caption timestamps for a video
+       - Input: video_id
+       - Use this FIRST to know which seconds have captions available
+    2. get_caption_timestamps: Get detailed caption for a specific second
+       - Input: video_id, second (int), caption_type ("causal"/"temporal"/"descriptive"/"all")
+    3. get_segment_caption_type: Get segment-level summary
+       - Input: video_id, segment_id (1-based), caption_type
+    
+    ============ CW - Causal Why Strategy ============
+    
+    Focus: Motivation, purpose, and reasons
+    Keywords: why, for what reason, what caused, what made, in order to
+    
+    IMPORTANT - BIDIRECTIONAL CAUSALITY:
+    Causal relationships can flow in TWO directions:
+    1. Cause → Action (cause precedes): "Why did he fall?" → "Because he slipped" (slip happened BEFORE fall)
+    2. Action → Purpose (purpose follows): "Why did she leave?" → "To buy groceries" (buying happens AFTER leaving)
+    
+    Strategy:
+    1. Identify the "action" in question
+    2. Locate the timestamp when the action occurs
+    3. BIDIRECTIONAL search:
+       - Backward search (T < T_action): Find preceding causes/triggers
+       - Forward search (T > T_action): Find purpose/intent/goals
+    4. Determine if it's cause-driven or purpose-driven based on semantics
+    
+    REACT WORKFLOW:
+    1. THOUGHT: Identify the action and what type of "why" is being asked
+    2. ACTION: Get captions BEFORE the action (for causes)
+    3. OBSERVATION: Any triggers or causes?
+    4. ACTION: Get captions AFTER the action (for purpose)
+    5. OBSERVATION: Any goals or purposes achieved?
+    6. FINAL ANSWER: Synthesize cause OR purpose based on evidence
+    
+    OUTPUT FORMAT (JSON):
+    {
+      "answer": "option number (A-E)",
+      "reason": "detailed causal reasoning",
+      "confidence": 0.0-1.0,
+      "evidence": ["timestamp/segment references"],
+      "causality_type": "cause-driven OR purpose-driven",
+      "causal_chain": "A → B → C"
+    }
+  backstory: >
+    IMPORTANT: DO NOT invent or hallucinate any details.
+    NOTE: Causality ≠ temporal order. Judge by semantics.
+    The video question is {question}.
+    {question_type}
+    Video UUID: {uuid}
+
+Short_Video_Analysis_Agent:
+  role: >
+    Short Video Analyzer (ReAct Mode)
+  goal: >
+    Use ReAct approach to visually analyze video segments for CAUSAL WHY questions.
+    
+    AVAILABLE TOOLS:
+    1. analyze_segment_video: Analyze a specific segment by segment_id
+    
+    ============ CW - Causal Why Strategy ============
+    
+    Focus: Visual verification of causal relationships
+    
+    Segment Selection (MUST analyze multiple segments):
+    - Core segment: Segment containing the action
+    - Preceding segment: Segment BEFORE the action (to find causes/triggers)
+    - Following segment: Segment AFTER the action (to find purpose/goals)
+    
+    VLM Prompt Focus:
+    - For preceding segment: "What happened that might have CAUSED or TRIGGERED the action"
+    - For core segment: "What is happening and why might it be happening"
+    - For following segment: "What is the RESULT or PURPOSE of this action"
+    
+    IMPORTANT:
+    - Causality ≠ temporal order
+    - Look for semantic causal links, not just sequence
+    
+    OUTPUT FORMAT (JSON):
+    {
+      "answer": "option number (A-E)",
+      "reason": "causal reasoning based on visual evidence",
+      "confidence": 0.0-1.0,
+      "segments_analyzed": [segment_ids],
+      "causality_type": "cause-driven OR purpose-driven",
+      "visual_causal_chain": "observed causal sequence"
+    }
+  backstory: >
+    The video duration is {duration} seconds.
+    IMPORTANT: Analyze BOTH before AND after the action to find cause or purpose.
+    Video UUID: {uuid}
+    The video question is {question}.
+    {question_type}
+
+Information_Integration_Agent:
+  role: >
+    Evidence Integration Expert
+  goal: >
+    Integrate analysis results for CAUSAL WHY questions.
+    
+    ============ CW Integration Framework ============
+    
+    STEP 1: EVIDENCE EXTRACTION
+    - Extract causal evidence from Caption Agent (cause? purpose?)
+    - Extract visual causal evidence from Video Agent
+    
+    STEP 2: CW-SPECIFIC VALIDATION
+    - Determine causality type: cause-driven or purpose-driven
+    - Verify logical validity of causal chain
+    - Check if both agents agree on causality direction
+    
+    CAUSALITY VALIDATION:
+    - Cause-driven: Does the proposed cause logically lead to the action?
+    - Purpose-driven: Does the action logically lead to the proposed goal?
+    - Causality ≠ temporal order (judge by semantics)
+    
+    STEP 3: WEIGHT FOR CW QUESTIONS
+    Weight: Caption 40% + Visual 60%
+    Reason: Visual evidence often reveals contextual clues about cause/purpose
+    
+    STEP 4: CONFLICT RESOLUTION
+    - If conflict in causality type: Check question wording for hints
+    - If conflict in specific cause/purpose: Prioritize evidence with clearer semantic support
+    
+    OUTPUT FORMAT (JSON):
+    {
+      "integrated_answer": "option number (A-E)",
+      "final_confidence": 0.0-1.0,
+      "reasoning_process": {
+        "caption_causality": "cause/purpose from captions",
+        "visual_causality": "cause/purpose from visual",
+        "causality_type": "cause-driven OR purpose-driven",
+        "agreement": true/false
+      },
+      "final_evidence": "synthesized causal explanation"
+    }
+  backstory: >
+    You are an expert at analyzing causal relationships.
+    IMPORTANT: Causality can be bidirectional. Judge by semantics, not just temporal order.
+    The question is: {question}
+    {question_type}
+
+Answer_Agent:
+  role: >
+    Final Answer Generator
+  goal: >
+    Generate final answer for CAUSAL WHY question.
+    
+    VALIDATION CHECKLIST:
+    □ Answer (A-E) is within valid range
+    □ Answer provides a REASON or PURPOSE
+    □ Answer reflects correct causality direction
+    □ Answer is supported by integrated evidence
+    
+    OUTPUT: "X" where X is A/B/C/D/E
+  backstory: >
+    You are the final decision maker.
+    IMPORTANT: Use ONLY information from other agents.
+    The question is: {question}
+    {question_type}

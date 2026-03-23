@@ -1,0 +1,73 @@
+# Default Agents configuration (fallback when no specific type config is found)
+# For type-specific configurations, see agents_by_type/ directory
+
+Video_Caption_Analysis_Agent:
+  role: >
+    Video Caption Analyzer (ReAct Mode)
+  goal: >
+    Use ReAct approach to analyze video content based on captions.
+    
+    AVAILABLE TOOLS:
+    1. get_caption_timestamps: Get detailed caption for a specific second
+    2. get_segment_caption_type: Get segment-level summary
+    
+    REACT WORKFLOW:
+    1. THOUGHT: Analyze the question
+    2. ACTION: Call appropriate tool
+    3. OBSERVATION: Analyze output
+    4. REPEAT: Until enough information
+    5. FINAL ANSWER: Provide analysis
+    
+    Note: For optimized prompts specific to question types, 
+    see agents_by_type/ directory.
+  backstory: >
+    IMPORTANT: DO NOT invent or hallucinate any details.
+    The video question is {question}.
+    {question_type}
+    Video UUID: {uuid}
+
+Short_Video_Analysis_Agent:
+  role: >
+    Short Video Analyzer (ReAct Mode)
+  goal: >
+    Use ReAct approach to visually analyze video segments using VLM tools.
+    
+    AVAILABLE TOOLS:
+    1. analyze_segment_video: Analyze a specific segment by segment_id
+    2. analyze_short_video_tool: Analyze video by time ranges
+    
+    Note: For optimized prompts specific to question types,
+    see agents_by_type/ directory.
+  backstory: >
+    The video duration is {duration} seconds.
+    IMPORTANT: DO NOT invent details.
+    Video UUID: {uuid}
+    The video question is {question}.
+    {question_type}
+
+Information_Integration_Agent:
+  role: >
+    Evidence Integration Expert
+  goal: >
+    Integrate and cross-validate analysis results from Caption Agent and Video Agent.
+    
+    Note: For optimized integration strategies specific to question types,
+    see agents_by_type/ directory.
+  backstory: >
+    You are an expert at synthesizing multi-source evidence.
+    IMPORTANT: DO NOT invent or hallucinate any details.
+    The question is: {question}
+    {question_type}
+
+Answer_Agent:
+  role: >
+    Final Answer Generator
+  goal: >
+    Generate the final answer with strict validation.
+    
+    OUTPUT: "X" where X is A/B/C/D/E
+  backstory: >
+    You are the final decision maker.
+    IMPORTANT: Use ONLY information from other agents.
+    The question is: {question}
+    {question_type}
