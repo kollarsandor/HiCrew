@@ -30,7 +30,7 @@ The following image illustrates the case study and the overall method of our **H
   <img src="assets/case.png" width="80%" alt="HiCrew Method Overview" />
 </div>
 
-> **Note:** [Here you can add a 1-2 sentence brief description of what the method achieves, e.g., "HiCrew proposes a novel multi-agent collaboration framework that significantly improves..."]
+> **Note:** [Qualitative analysis on a Causal reasoning question from NExT-QA"]
 
 
 ---
