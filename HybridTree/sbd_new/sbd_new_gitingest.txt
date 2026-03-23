@@ -1,0 +1,947 @@
+================================================
+File: sbd.py
+================================================
+#Import OpenCv library
+from cv2 import *
+import cv2
+import numpy as np
+import pprint
+import sys
+import os
+import glob
+import pyimgsaliency as psal
+import matplotlib.cm as cm  
+
+blk_size = 16
+def first_img_blk_mean_arr(frame):
+    blk_mean_arr = edge_detector(frame)
+    return blk_mean_arr
+
+def edge_detector(ref):
+    gray = cv2.cvtColor(ref, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (3,3), 0)
+    high_thresh, thresh_im = cv2.threshold(gray, 0, 255, cv2.THRESH_OTSU)
+    lowThresh = 0.2*high_thresh
+    edges = cv2.Canny(gray,lowThresh,high_thresh)
+    
+    mat = np.matrix(edges)/255
+    h = mat.shape[0]
+    w = mat.shape[1]
+    blk_mean_arr = []
+    for i in range(0,h,blk_size):
+        for j in range(0,w,blk_size):
+            blk_mean = mat[i:i+blk_size,j:j+blk_size].mean()
+            blk_mean_arr.append(blk_mean)
+    return blk_mean_arr
+
+def edge_diff(ref_img_blk_mean_arr, curr_img, img_h, img_w):
+    curr_img_blk_mean_arr = edge_detector(curr_img)
+    diff = [abs(curr_img_blk_mean_arr[t]-ref_img_blk_mean_arr[t]) for t in range(0,len(ref_img_blk_mean_arr))]
+    diff2 = [round(val, 1) if val > 0.1 else 0 for val in diff]
+    return [round(sum(diff2),2), curr_img_blk_mean_arr]
+
+def cal_edge_diff2(vid):
+    file_name = vid + '.mp4'
+    cap = cv2.VideoCapture(file_name)
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
+    total_frame = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    total_sec = int(total_frame/fps)
+    size = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),  int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+    scale_h = 128
+    scale_w = int(size[0]*1.0*scale_h/size[1])
+
+    if not os.path.exists(vid+"/edge_diff.txt"):
+        os.mkdir(vid)
+        os.mkdir(vid+"/sbd/")
+        os.mkdir(vid+"/saliency/")
+        f = open(vid+"/edge_diff.txt", "w")
+        
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        flag, frame = cap.read()
+        frame = cv2.resize(frame, (scale_w, 128))
+
+        ref_img_blk_mean_arr = first_img_blk_mean_arr(frame)
+        for i in range(0, total_frame, fps):
+            cap.set(cv2.CAP_PROP_POS_FRAMES, i)
+            flag, frame = cap.read()
+            frame = cv2.resize(frame, (scale_w, 128))
+            [diff_val, ref_img_blk_mean_arr] = edge_diff(ref_img_blk_mean_arr, frame, scale_h, scale_w)
+            print(int(i/fps), diff_val, total_frame)
+            f.write(str(int(i/fps)) + "\t" + str(diff_val) + "\n")
+        f.close()
+
+    diff_val_arr = []
+    frame_idx_arr = []
+    with open(vid+"/edge_diff.txt") as ins:
+        for line in ins:
+            rec =line.replace("\n", "").split("\t")
+            frame_idx = int(rec[0])
+            diff_val = np.round(float(rec[1]), 0)
+            frame_idx_arr.append(frame_idx)
+
+            if diff_val<6:
+                diff_val_arr.append(0)
+            else:
+                diff_val_arr.append(diff_val)
+    runs = zero_runs(diff_val_arr)
+    shot_start_arr = []
+    shot_start = 0
+    shot_len = 0
+    for t in range(len(runs)): 
+        if t == 0:
+            shot_start = 0
+        else:
+            shot_start = runs[t][0]-1
+        shot_start_arr.append(shot_start)
+        print(shot_start)
+    print(diff_val_arr)
+    shot_start_arr.append(total_sec)
+    print(shot_start_arr)
+    
+    if not os.path.exists(vid + "/shot.txt"):
+        cnt = 0
+        f = open(vid + "/shot.txt", "w")
+        for cnt in range(len(shot_start_arr)-1):
+            f.write(str(cnt) + "\t" + str(shot_start_arr[cnt]) + "\t" + str(shot_start_arr[cnt+1]-1) + "\t" + str(shot_start_arr[cnt+1]-shot_start_arr[cnt]) + "\n")
+            i = int((shot_start_arr[cnt+1]+shot_start_arr[cnt])/2*fps)
+            cap.set(cv2.CAP_PROP_POS_FRAMES, i)
+            flag, frame = cap.read()
+            frame = cv2.resize(frame, (scale_w, 128))
+            cv2.imwrite(vid + "/sbd/" + str(cnt) + ".jpg", frame)
+        f.close()
+    else:
+        if not os.path.exists(vid + "/SOD/"):
+            os.mkdir(vid + "/SOD/")
+
+
+        for cnt in range(len(shot_start_arr)-1):
+            if not os.path.exists(vid + "/SOD/" + str(cnt) + "_bin.jpg"):
+
+                frame = cv2.imread(vid + "/sbd/" + str(cnt) + ".jpg")
+                mbd = np.zeros((scale_h,scale_w), np.uint8)
+                try:
+                    mbd = psal.get_saliency_mbd(frame).astype('uint8')
+                except:
+                    print("??")
+                mbd = cv2.GaussianBlur(mbd,(9,9),0)
+                binary_sal = psal.binarise_saliency_map(mbd, method='adaptive')
+                colors = cm.jet(np.linspace(0, 1, 255)) # other color schemes: gist_rainbow, nipy_spectral, plasma, inferno, magma, cividis
+
+                blank_image = np.zeros((scale_h,scale_w,3), np.uint8)
+                for h in range(scale_h):
+                    for w in range(scale_w):
+                        blank_image[h][w] = [int(val*255) for val in colors[mbd[h][w]]][0:3][::-1]
+                blank_image = cv2.GaussianBlur(blank_image,(5,5),0)
+
+                dst = cv2.addWeighted(frame, 0.5, blank_image, 0.5, 0)
+                cv2.imwrite(vid + "/SOD/" + str(cnt) + "_frame.jpg", frame)
+                cv2.imwrite(vid + "/SOD/" + str(cnt) + "_dst.jpg", dst)
+                cv2.imwrite(vid + "/SOD/" + str(cnt) + "_bin.jpg", 255 * binary_sal.astype('uint8'))
+
+
+            # added_image = cv2.addWeighted(frame,0.4,255 * mbd.astype('uint8'),0.1,0)
+    
+
+    for t in range(0, len(shot_start_arr)-1):
+        shot_start = shot_start_arr[t]
+        shot_end = shot_start_arr[t+1]
+        print(shot_start, shot_end, shot_end-shot_start)
+        cap.set(cv2.CAP_PROP_POS_FRAMES, int((shot_start+shot_end)/2)*fps)
+        flag, frame = cap.read()
+        frame = cv2.resize(frame, (scale_w, 128))
+        cv2.imwrite( "/Applications/XAMPP/xamppfiles/htdocs/visaug/" + str(shot_start) + "_" + str(shot_end) + ".jpg", frame)
+        mbd = psal.get_saliency_mbd(frame).astype('uint8')
+        mbd = cv2.GaussianBlur(mbd,(9,9),0)
+        img_h, img_w, ch = frame.shape
+        blank_image = np.zeros((img_h,img_w,3), np.uint8)
+        colors = cm.jet(np.linspace(0, 1, 255)) # other color schemes: gist_rainbow, nipy_spectral, plasma, inferno, magma, cividis
+        colors = colors[::-1]
+        for h in range(img_h):
+            for w in range(img_w):
+                blank_image[h][w] = [int(val*255) for val in colors[mbd[h][w]]][0:3][::-1]
+        blank_image = cv2.GaussianBlur(blank_image,(5,5),0)
+
+        dst = cv2.addWeighted(frame, 0.5, blank_image, 0.5, 0)
+        # added_image = cv2.addWeighted(frame,0.4,255 * mbd.astype('uint8'),0.1,0)
+        cv2.imwrite( "/Applications/XAMPP/xamppfiles/htdocs/visaug/"+"/mbd" + str(shot_start) + "_" + str(shot_end) + ".jpg", dst)
+        binary_sal = psal.binarise_saliency_map(mbd, method='adaptive')
+        
+
+        colors = cm.jet(np.linspace(0, 1, 255)) # other color schemes: gist_rainbow, nipy_spectral, plasma, inferno, magma, cividis
+        # colors = colors[::-1]
+        print(len(colors*255))
+        blank_image = np.zeros((scale_h,scale_w,3), np.uint8)
+        for h in range(scale_h):
+            for w in range(scale_w):
+                blank_image[h][w] = [int(val*255) for val in colors[mbd[h][w]]][0:3][::-1]
+        blank_image = cv2.GaussianBlur(blank_image,(5,5),0)
+
+        dst = cv2.addWeighted(frame, 0.5, blank_image, 0.5, 0)
+
+        # added_image = cv2.addWeighted(frame,0.4,255 * mbd.astype('uint8'),0.1,0)
+        # cv2.imshow('mbd', mbd)
+        # cv2.imshow('blank_image', blank_image)
+        # cv2.imshow('added_image', dst)
+        # cv2.imshow('binary',255 * binary_sal.astype('uint8'))
+        # cv2.imshow("frame", frame)
+        # cv2.waitKey(200)
+
+        # cv2.imwrite(vid+"\\sbd\\" + str(shot_start) + "_" + str(shot_end) + ".jpg", frame)
+def cal_edge_diff2(vid):
+    file_name = vid + '.mp4'
+    cap = cv2.VideoCapture(file_name)
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
+    total_frame = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    total_sec = int(total_frame / fps)
+    size = (int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+    scale_h = 128
+    scale_w = int(size[0] * 1.0 * scale_h / size[1])
+
+    if not os.path.exists(vid + "/edge_diff.txt"):
+        os.makedirs(vid + "/sbd/", exist_ok=True)
+        os.makedirs(vid + "/saliency/", exist_ok=True)
+        f = open(vid + "/edge_diff.txt", "w")
+        
+        cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        flag, frame = cap.read()
+        frame = cv2.resize(frame, (scale_w, 128))
+
+        ref_img_blk_mean_arr = first_img_blk_mean_arr(frame)
+        for i in range(0, total_frame, fps):
+            cap.set(cv2.CAP_PROP_POS_FRAMES, i)
+            flag, frame = cap.read()
+            frame = cv2.resize(frame, (scale_w, 128))
+            [diff_val, ref_img_blk_mean_arr] = edge_diff(ref_img_blk_mean_arr, frame, scale_h, scale_w)
+            f.write(str(int(i / fps)) + "\t" + str(diff_val) + "\n")
+        f.close()
+
+    diff_val_arr = []
+    frame_idx_arr = []
+    with open(vid + "/edge_diff.txt") as ins:
+        for line in ins:
+            rec = line.strip().split("\t")
+            frame_idx = int(rec[0])
+            diff_val = np.round(float(rec[1]), 0)
+            frame_idx_arr.append(frame_idx)
+            diff_val_arr.append(0 if diff_val < 6 else diff_val)
+
+    runs = zero_runs(diff_val_arr)
+    shot_start_arr = []
+    for t in range(len(runs)):
+        if t == 0:
+            shot_start = 0
+        else:
+            shot_start = runs[t][0] - 1
+        shot_start_arr.append(shot_start)
+    shot_start_arr.append(total_sec)
+
+    print(shot_start_arr)
+    return shot_start_arr
+
+
+def sliding_window(binary_sal):
+    img_h, img_w = binary_sal.shape
+    mask = np.zeros((img_h, img_w))
+    win_size = 16
+    for h in range(0,img_h-win_size,win_size):
+        for w in range(0,img_w-win_size,win_size):
+            # if np.sum(binary_sal[h:h+win_size,w:w+win_size])/255.0>win_size*win_size/16.0:
+             if np.sum(binary_sal[h:h+win_size,w:w+win_size])/255.0>win_size*win_size*0.1:
+                mask[h:h+win_size,w:w+win_size]=255
+    return mask
+
+def zero_runs(a):
+    # Create an array that is 1 where a is 0, and pad each end with an extra 0.
+    iszero = np.concatenate(([0], np.equal(a, 0).view(np.int8), [0]))
+    absdiff = np.abs(np.diff(iszero))
+    # Runs start and end where absdiff is 1.
+    ranges = np.where(absdiff == 1)[0].reshape(-1, 2)
+    return ranges
+
+
+
+if __name__=="__main__":
+    fd = "/workspace/media/"
+
+    for vid in ["0a01d7d0-11d6-4af6-abd9-2025656d3c63"]:
+    # for vid in [ "qpoRO378qRY", "cdZZpaB2kDM", "7zC8-06198g",  "540vzMlf-54", "LutI8YqJkqM", "KlV0fyDC3Gc"]:
+
+        
+        shot_start_arr = cal_edge_diff2(fd + vid)
+
+
+
+================================================
+File: pyimgsaliency/__init__.py
+================================================
+from .saliency import *
+from .binarise import *
+from .saliency_mbd import *
+from .evaluate import *
+
+
+
+================================================
+File: pyimgsaliency/binarise.py
+================================================
+import numpy as np
+
+def binarise_saliency_map(saliency_map,method='adaptive',threshold=0.5):
+
+	# check if input is a numpy array
+	if type(saliency_map).__module__ != np.__name__:
+		print('Expected numpy array')
+		return None
+
+	#check if input is 2D
+	if len(saliency_map.shape) != 2:
+		print('Saliency map must be 2D')
+		return None
+
+	if method == 'fixed':
+		return (saliency_map > threshold)
+
+	elif method == 'adaptive':
+		adaptive_threshold = 2.0 * saliency_map.mean()
+		return (saliency_map > adaptive_threshold)
+
+	elif method == 'clustering':
+		print('Not yet implemented')
+		return None
+
+	else:
+		print("Method must be one of fixed, adaptive or clustering")
+		return None
+
+
+
+================================================
+File: pyimgsaliency/demo.py
+================================================
+import pyimgsaliency as psal
+import cv2
+
+# path to the image
+filename = 'bird.jpg'
+
+# get the saliency maps using the 3 implemented methods
+rbd = psal.get_saliency_rbd(filename).astype('uint8')
+
+ft = psal.get_saliency_ft(filename).astype('uint8')
+
+mbd = psal.get_saliency_mbd(filename).astype('uint8')
+
+# often, it is desirable to have a binary saliency map
+binary_sal = psal.binarise_saliency_map(mbd,method='adaptive')
+
+img = cv2.imread(filename)
+
+cv2.imshow('img',img)
+cv2.imshow('rbd',rbd)
+cv2.imshow('ft',ft)
+cv2.imshow('mbd',mbd)
+
+#openCV cannot display numpy type 0, so convert to uint8 and scale
+cv2.imshow('binary',255 * binary_sal.astype('uint8'))
+
+
+cv2.waitKey(0)
+
+
+
+================================================
+File: pyimgsaliency/evaluate.py
+================================================
+import os
+import pdb
+import pyimgsaliency
+import cv2
+import pdb
+import numpy as np
+import sklearn.metrics
+from matplotlib import pyplot as plt
+def evaluate(img_dir,gt_dir,methods):
+
+	valid_extensions = ['.jpg','.png']
+
+	results_precision = {}
+	results_recall = {}
+	for filename in os.listdir(img_dir):
+		if filename.endswith(".jpg") or filename.endswith(".png"): 
+			basename = os.path.splitext(filename)[0]
+			gt_image_path = None
+			if os.path.isfile(gt_dir + '/' + basename + '.png'):
+				gt_image_path = gt_dir + '/' + basename + '.png'
+			elif os.path.isfile(gt_dir + '/' + basename + '.jpg'):
+				gt_image_path = gt_dir + '/' + basename + '.jpg'
+			else:
+				print('No match in gt directory for file' + str(filename) + ', skipping.')
+				continue
+			print(img_dir + '/' + filename)
+			sal_image = pyimgsaliency.get_saliency_mbd(img_dir + '/' + filename).astype('uint8')
+			gt_image = cv2.imread(gt_image_path,cv2.CV_LOAD_IMAGE_GRAYSCALE)
+			cv2.imshow('sal',sal_image)
+			cv2.imshow('img',gt_image)
+			cv2.waitKey(0)
+			if gt_image.shape != sal_image.shape:
+				print('Size of image and GT image does not match, skipping')
+				continue
+			#precision, recall, thresholds = sklearn.metrics.precision_recall(y_true,y_scores)
+			'''
+			precisions = {}
+			recalls = {}
+			
+			num_pixels = sal_image.shape[0] * sal_image.shape[1]
+			
+			p = np.count_nonzero(gt_image)
+			n = num_pixels - p
+			
+			for v in xrange(0,255):
+				culled = np.copy(sal_image)
+				culled[culled < v] = 0
+				if np.count_nonzero(culled) == 0:
+					recall = 1
+					sensitivity = 0
+				else:
+					tp = np.count_nonzero(culled & gt_image)
+					recall = float(tp)/p
+					precision = float(tp) / np.count_nonzero(culled)
+
+				precisions[v] = precision
+				recalls[v] = recall
+
+			results_precision[filename] = precisions
+			results_recall[filename] = recalls
+
+			x = []
+			y = []
+			for x1 in precisions:
+				#print x1
+				x.append(precisions[x1])
+				y.append(recalls[x1])
+			plt.plot(x,y)
+			plt.show()
+			'''
+			#pdb.set_trace()
+	return (results_precision,results_recall)
+
+
+
+================================================
+File: pyimgsaliency/saliency.py
+================================================
+import math
+import sys
+import operator
+import networkx as nx
+#import matplotlib.pyplot as plt
+import numpy as np
+import scipy.spatial.distance
+import scipy.signal
+import skimage
+import skimage.io
+from skimage.segmentation import slic
+from skimage.util import img_as_float
+from scipy.optimize import minimize
+
+import pdb
+
+def S(x1,x2,geodesic,sigma_clr=10):
+	return math.exp(-pow(geodesic[x1,x2],2)/(2*sigma_clr*sigma_clr))
+
+def compute_saliency_cost(smoothness,w_bg,wCtr):
+	n = len(w_bg)
+	A = np.zeros((n,n))
+	b = np.zeros((n))
+
+	for x in xrange(0,n):
+		A[x,x] = 2 * w_bg[x] + 2 * (wCtr[x])
+		b[x] = 2 * wCtr[x]
+		for y in xrange(0,n):
+			A[x,x] += 2 * smoothness[x,y]
+			A[x,y] -= 2 * smoothness[x,y]
+	
+	x = np.linalg.solve(A, b)
+
+	return x
+
+def path_length(path,G):
+	dist = 0.0
+	for i in range(1,len(path)):
+		dist += G[path[i - 1]][path[i]]['weight']
+	return dist
+
+def make_graph(grid):
+	# get unique labels
+	vertices = np.unique(grid)
+ 
+	# map unique labels to [1,...,num_labels]
+	reverse_dict = dict(zip(vertices,np.arange(len(vertices))))
+	grid = np.array([reverse_dict[x] for x in grid.flat]).reshape(grid.shape)
+   
+	# create edges
+	down = np.c_[grid[:-1, :].ravel(), grid[1:, :].ravel()]
+	right = np.c_[grid[:, :-1].ravel(), grid[:, 1:].ravel()]
+	all_edges = np.vstack([right, down])
+	all_edges = all_edges[all_edges[:, 0] != all_edges[:, 1], :]
+	all_edges = np.sort(all_edges,axis=1)
+	num_vertices = len(vertices)
+	edge_hash = all_edges[:,0] + num_vertices * all_edges[:, 1]
+	# find unique connections
+	edges = np.unique(edge_hash)
+	# undo hashing
+	for x in edges:
+		print(x/num_vertices)
+	edges = [[vertices[x%num_vertices],
+			  vertices[int(x/num_vertices)]] for x in edges] 
+ 
+	return vertices, edges
+	
+
+def get_saliency_rbd(img_path):
+
+	# Saliency map calculation based on:
+	# Saliency Optimization from Robust Background Detection, Wangjiang Zhu, Shuang Liang, Yichen Wei and Jian Sun, IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2014
+
+	img = skimage.io.imread(img_path)
+
+	if len(img.shape) != 3: # got a grayscale image
+		img = skimage.color.gray2rgb(img)
+
+	img_lab = img_as_float(skimage.color.rgb2lab(img))
+
+	img_rgb = img_as_float(img)
+
+	img_gray = img_as_float(skimage.color.rgb2gray(img))
+
+	segments_slic = slic(img_rgb, n_segments=250, compactness=10, sigma=1, enforce_connectivity=False)
+
+	num_segments = len(np.unique(segments_slic))
+
+	nrows, ncols = segments_slic.shape
+	max_dist = math.sqrt(nrows*nrows + ncols*ncols)
+
+	grid = segments_slic
+	print(grid.shape)
+
+	(vertices,edges) = make_graph(grid)
+
+	gridx, gridy = np.mgrid[:grid.shape[0], :grid.shape[1]]
+
+	centers = dict()
+	colors = dict()
+	distances = dict()
+	boundary = dict()
+
+	for v in vertices:
+		centers[v] = [gridy[grid == v].mean(), gridx[grid == v].mean()]
+		colors[v] = np.mean(img_lab[grid==v],axis=0)
+
+		x_pix = gridx[grid == v]
+		y_pix = gridy[grid == v]
+
+		if np.any(x_pix == 0) or np.any(y_pix == 0) or np.any(x_pix == nrows - 1) or np.any(y_pix == ncols - 1):
+			boundary[v] = 1
+		else:
+			boundary[v] = 0
+
+	G = nx.Graph()
+
+	#buid the graph
+	for edge in edges:
+		pt1 = edge[0]
+		pt2 = edge[1]
+		color_distance = scipy.spatial.distance.euclidean(colors[pt1],colors[pt2])
+		G.add_edge(pt1, pt2, weight=color_distance )
+
+	#add a new edge in graph if edges are both on boundary
+	for v1 in vertices:
+		if boundary[v1] == 1:
+			for v2 in vertices:
+				if boundary[v2] == 1:
+					color_distance = scipy.spatial.distance.euclidean(colors[v1],colors[v2])
+					G.add_edge(v1,v2,weight=color_distance)
+
+	geodesic = np.zeros((len(vertices),len(vertices)),dtype=float)
+	spatial = np.zeros((len(vertices),len(vertices)),dtype=float)
+	smoothness = np.zeros((len(vertices),len(vertices)),dtype=float)
+	adjacency = np.zeros((len(vertices),len(vertices)),dtype=float)
+
+	sigma_clr = 10.0
+	sigma_bndcon = 1.0
+	sigma_spa = 0.25
+	mu = 0.1
+
+	all_shortest_paths_color = nx.shortest_path(G,source=None,target=None,weight='weight')
+	# print(all_shortest_paths_color)
+	for v1 in vertices:
+		for v2 in vertices:
+			if v1 == v2:
+				geodesic[v1,v2] = 0
+				spatial[v1,v2] = 0
+				smoothness[v1,v2] = 0
+			else:
+				print(v1,v2)
+				geodesic[v1,v2] = path_length(all_shortest_paths_color[v1][v2],G)
+				spatial[v1,v2] = scipy.spatial.distance.euclidean(centers[v1],centers[v2]) / max_dist
+				smoothness[v1,v2] = math.exp( - (geodesic[v1,v2] * geodesic[v1,v2])/(2.0*sigma_clr*sigma_clr)) + mu 
+
+	for edge in edges:
+		pt1 = edge[0]
+		pt2 = edge[1]
+		adjacency[pt1,pt2] = 1
+		adjacency[pt2,pt1] = 1
+
+	for v1 in vertices:
+		for v2 in vertices:
+			smoothness[v1,v2] = adjacency[v1,v2] * smoothness[v1,v2]
+
+	area = dict()
+	len_bnd = dict()
+	bnd_con = dict()
+	w_bg = dict()
+	ctr = dict()
+	wCtr = dict()
+
+	for v1 in vertices:
+		area[v1] = 0
+		len_bnd[v1] = 0
+		ctr[v1] = 0
+		for v2 in vertices:
+			d_app = geodesic[v1,v2]
+			d_spa = spatial[v1,v2]
+			w_spa = math.exp(- ((d_spa)*(d_spa))/(2.0*sigma_spa*sigma_spa))
+			area_i = S(v1,v2,geodesic)
+			area[v1] += area_i
+			len_bnd[v1] += area_i * boundary[v2]
+			ctr[v1] += d_app * w_spa
+		bnd_con[v1] = len_bnd[v1] / math.sqrt(area[v1])
+		w_bg[v1] = 1.0 - math.exp(- (bnd_con[v1]*bnd_con[v1])/(2*sigma_bndcon*sigma_bndcon))
+
+	for v1 in vertices:
+		wCtr[v1] = 0
+		for v2 in vertices:
+			d_app = geodesic[v1,v2]
+			d_spa = spatial[v1,v2]
+			w_spa = math.exp(- (d_spa*d_spa)/(2.0*sigma_spa*sigma_spa))
+			wCtr[v1] += d_app * w_spa *  w_bg[v2]
+
+	# normalise value for wCtr
+
+	min_value = min(wCtr.values())
+	max_value = max(wCtr.values())
+
+	minVal = [key for key, value in wCtr.items() if value == min_value]
+	maxVal = [key for key, value in wCtr.items() if value == max_value]
+
+	for v in vertices:
+		wCtr[v] = (wCtr[v] - min_value)/(max_value - min_value)
+
+	img_disp1 = img_gray.copy()
+	img_disp2 = img_gray.copy()
+
+	x = compute_saliency_cost(smoothness,w_bg,wCtr)
+
+	for v in vertices:
+		img_disp1[grid == v] = x[v]
+
+	img_disp2 = img_disp1.copy()
+	sal = np.zeros((img_disp1.shape[0],img_disp1.shape[1],3))
+
+	sal = img_disp2
+	sal_max = np.max(sal)
+	sal_min = np.min(sal)
+	sal = 255 * ((sal - sal_min) / (sal_max - sal_min))
+
+	return sal
+
+def get_saliency_ft(img_path):
+
+	# Saliency map calculation based on:
+
+	img = skimage.io.imread(img_path)
+
+	img_rgb = img_as_float(img)
+
+	img_lab = skimage.color.rgb2lab(img_rgb) 
+
+	mean_val = np.mean(img_rgb,axis=(0,1))
+
+	kernel_h = (1.0/16.0) * np.array([[1,4,6,4,1]])
+	kernel_w = kernel_h.transpose()
+
+	blurred_l = scipy.signal.convolve2d(img_lab[:,:,0],kernel_h,mode='same')
+	blurred_a = scipy.signal.convolve2d(img_lab[:,:,1],kernel_h,mode='same')
+	blurred_b = scipy.signal.convolve2d(img_lab[:,:,2],kernel_h,mode='same')
+
+	blurred_l = scipy.signal.convolve2d(blurred_l,kernel_w,mode='same')
+	blurred_a = scipy.signal.convolve2d(blurred_a,kernel_w,mode='same')
+	blurred_b = scipy.signal.convolve2d(blurred_b,kernel_w,mode='same')
+
+	im_blurred = np.dstack([blurred_l,blurred_a,blurred_b])
+
+	sal = np.linalg.norm(mean_val - im_blurred,axis = 2)
+	sal_max = np.max(sal)
+	sal_min = np.min(sal)
+	sal = 255 * ((sal - sal_min) / (sal_max - sal_min))
+	return sal
+
+
+
+================================================
+File: pyimgsaliency/saliency_mbd.py
+================================================
+import math
+import sys
+import operator
+import networkx as nx
+#import matplotlib.pyplot as plt
+import numpy as np
+import scipy.spatial.distance
+import scipy.signal
+import skimage
+import skimage.io
+from skimage.segmentation import slic
+from skimage.util import img_as_float
+from scipy.optimize import minimize
+#import pdb
+
+def raster_scan(img,L,U,D):
+	n_rows = len(img)
+	n_cols = len(img[0])
+
+	for x in range(1,n_rows - 1):
+		for y in range(1,n_cols - 1):
+			ix = img[x][y]
+			d = D[x][y]
+
+			u1 = U[x-1][y]
+			l1 = L[x-1][y]
+
+			u2 = U[x][y-1]
+			l2 = L[x][y-1]
+
+			b1 = max(u1,ix) - min(l1,ix)
+			b2 = max(u2,ix) - min(l2,ix)
+
+			if d <= b1 and d <= b2:
+				continue
+			elif b1 < d and b1 <= b2:
+				D[x][y] = b1
+				U[x][y] = max(u1,ix)
+				L[x][y] = min(l1,ix)
+			else:
+				D[x][y] = b2
+				U[x][y] = max(u2,ix)
+				L[x][y] = min(l2,ix)
+
+	return True
+
+def raster_scan_inv(img,L,U,D):
+	n_rows = len(img)
+	n_cols = len(img[0])
+
+	for x in range(n_rows - 2,1,-1):
+		for y in range(n_cols - 2,1,-1):
+
+			ix = img[x][y]
+			d = D[x][y]
+
+			u1 = U[x+1][y]
+			l1 = L[x+1][y]
+
+			u2 = U[x][y+1]
+			l2 = L[x][y+1]
+
+			b1 = max(u1,ix) - min(l1,ix)
+			b2 = max(u2,ix) - min(l2,ix)
+
+			if d <= b1 and d <= b2:
+				continue
+			elif b1 < d and b1 <= b2:
+				D[x][y] = b1
+				U[x][y] = max(u1,ix)
+				L[x][y] = min(l1,ix)
+			else:
+				D[x][y] = b2
+				U[x][y] = max(u2,ix)
+				L[x][y] = min(l2,ix)
+
+	return True
+
+def mbd(img, num_iters):
+
+	if len(img.shape) != 2:
+		print('did not get 2d np array to fast mbd')
+		return None
+	if (img.shape[0] <= 3 or img.shape[1] <= 3):
+		print('image is too small')
+		return None
+
+	L = np.copy(img)
+	U = np.copy(img)
+	D = float('Inf') * np.ones(img.shape)
+	D[0,:] = 0
+	D[-1,:] = 0
+	D[:,0] = 0
+	D[:,-1] = 0
+
+	# unfortunately, iterating over numpy arrays is very slow
+	img_list = img.tolist()
+	L_list = L.tolist()
+	U_list = U.tolist()
+	D_list = D.tolist()
+
+	for x in range(0,num_iters):
+		if x%2 == 1:
+			raster_scan(img_list,L_list,U_list,D_list)
+		else:
+			raster_scan_inv(img_list,L_list,U_list,D_list)
+
+	return np.array(D_list)
+
+
+def get_saliency_mbd(img,method='b'):
+
+	# img_path_list = []
+	# #we get either a filename or a list of filenames
+	# if type(input) == type(str()):
+	# 	img_path_list.append(input)
+	# elif type(input) == type(list()):
+	# 	img_path_list = input
+	# else:
+	# 	print('Input type is neither list or string')
+	# 	return None
+
+	# # Saliency map calculation based on: Minimum Barrier Salient Object Detection at 80 FPS
+	# for img_path in img_path_list:
+
+		# img = skimage.io.imread(img_path)
+		img_mean = np.mean(img,axis=(2))
+		sal = mbd(img_mean,3)
+
+
+		if method == 'b':
+			# get the background map
+
+			# paper uses 30px for an image of size 300px, so we use 10%
+			(n_rows,n_cols,n_channels) = img.shape
+			img_size = math.sqrt(n_rows * n_cols)
+			border_thickness = int(math.floor(0.1 * img_size))
+
+			img_lab = img_as_float(skimage.color.rgb2lab(img))
+			
+			px_left = img_lab[0:border_thickness,:,:]
+			px_right = img_lab[n_rows - border_thickness-1:-1,:,:]
+
+			px_top = img_lab[:,0:border_thickness,:]
+			px_bottom = img_lab[:,n_cols - border_thickness-1:-1,:]
+			
+			px_mean_left = np.mean(px_left,axis=(0,1))
+			px_mean_right = np.mean(px_right,axis=(0,1))
+			px_mean_top = np.mean(px_top,axis=(0,1))
+			px_mean_bottom = np.mean(px_bottom,axis=(0,1))
+
+
+			px_left = px_left.reshape((n_cols*border_thickness,3))
+			px_right = px_right.reshape((n_cols*border_thickness,3))
+
+			px_top = px_top.reshape((n_rows*border_thickness,3))
+			px_bottom = px_bottom.reshape((n_rows*border_thickness,3))
+
+			cov_left = np.cov(px_left.T)
+			cov_right = np.cov(px_right.T)
+
+			cov_top = np.cov(px_top.T)
+			cov_bottom = np.cov(px_bottom.T)
+
+			cov_left = np.linalg.inv(cov_left)
+			cov_right = np.linalg.inv(cov_right)
+			
+			cov_top = np.linalg.inv(cov_top)
+			cov_bottom = np.linalg.inv(cov_bottom)
+
+
+			u_left = np.zeros(sal.shape)
+			u_right = np.zeros(sal.shape)
+			u_top = np.zeros(sal.shape)
+			u_bottom = np.zeros(sal.shape)
+
+			u_final = np.zeros(sal.shape)
+			img_lab_unrolled = img_lab.reshape(img_lab.shape[0]*img_lab.shape[1],3)
+
+			px_mean_left_2 = np.zeros((1,3))
+			px_mean_left_2[0,:] = px_mean_left
+
+			u_left = scipy.spatial.distance.cdist(img_lab_unrolled,px_mean_left_2,'mahalanobis', VI=cov_left)
+			u_left = u_left.reshape((img_lab.shape[0],img_lab.shape[1]))
+
+			px_mean_right_2 = np.zeros((1,3))
+			px_mean_right_2[0,:] = px_mean_right
+
+			u_right = scipy.spatial.distance.cdist(img_lab_unrolled,px_mean_right_2,'mahalanobis', VI=cov_right)
+			u_right = u_right.reshape((img_lab.shape[0],img_lab.shape[1]))
+
+			px_mean_top_2 = np.zeros((1,3))
+			px_mean_top_2[0,:] = px_mean_top
+
+			u_top = scipy.spatial.distance.cdist(img_lab_unrolled,px_mean_top_2,'mahalanobis', VI=cov_top)
+			u_top = u_top.reshape((img_lab.shape[0],img_lab.shape[1]))
+
+			px_mean_bottom_2 = np.zeros((1,3))
+			px_mean_bottom_2[0,:] = px_mean_bottom
+
+			u_bottom = scipy.spatial.distance.cdist(img_lab_unrolled,px_mean_bottom_2,'mahalanobis', VI=cov_bottom)
+			u_bottom = u_bottom.reshape((img_lab.shape[0],img_lab.shape[1]))
+
+			max_u_left = np.max(u_left)
+			max_u_right = np.max(u_right)
+			max_u_top = np.max(u_top)
+			max_u_bottom = np.max(u_bottom)
+
+			u_left = u_left / max_u_left
+			u_right = u_right / max_u_right
+			u_top = u_top / max_u_top
+			u_bottom = u_bottom / max_u_bottom
+
+			u_max = np.maximum(np.maximum(np.maximum(u_left,u_right),u_top),u_bottom)
+
+			u_final = (u_left + u_right + u_top + u_bottom) - u_max
+
+			u_max_final = np.max(u_final)
+			sal_max = np.max(sal)
+			sal = sal / sal_max + u_final / u_max_final
+
+		#postprocessing
+
+		# apply centredness map
+		sal = sal / np.max(sal)
+		
+		s = np.mean(sal)
+		alpha = 50.0
+		delta = alpha * math.sqrt(s)
+
+		xv,yv = np.meshgrid(np.arange(sal.shape[1]),np.arange(sal.shape[0]))
+		(w,h) = sal.shape
+		w2 = w/2.0
+		h2 = h/2.0
+
+		C = 1 - np.sqrt(np.power(xv - h2,2) + np.power(yv - w2,2)) / math.sqrt(np.power(w2,2) + np.power(h2,2))
+
+		sal = sal * C
+
+		#increase bg/fg contrast 
+
+		def f(x):
+			b = 10.0
+			return 1.0 / (1.0 + math.exp(-b*(x - 0.5)))
+
+		fv = np.vectorize(f)
+
+		sal = sal / np.max(sal)
+
+		sal = fv(sal)
+
+		return sal* 255.0
+
+

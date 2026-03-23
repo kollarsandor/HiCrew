@@ -1,0 +1,56 @@
+{
+    "0074f737-11cb-497d-8d07-77c3a8127391": {
+        "question": "Taking into account all the actions performed by c, what can you deduce about the primary objective and focus within the video content?",
+        "0": "C is cooking.",
+        "1": "C is doing laundry.",
+        "2": "C is cleaning the kitchen.",
+        "3": "C is cleaning dishes.",
+        "4": "C is cleaning the bathroom.",
+        "truth": 3
+    },
+    "00b9a0de-c59e-49cb-a127-6081e2fb8c8e": {
+        "question": "What was the primary purpose of the cup of water in this video, and how did it contribute to the overall painting process?",
+        "0": "To provide a source of water for the paintbrush.",
+        "1": "To provide a place to store the paintbrush.",
+        "2": "To provide a place to dispose of the paintbrush.",
+        "3": "To provide a place to rest the paintbrush.",
+        "4": "To clean the paintbrush.",
+        "truth": 4
+    },
+    "0437cf5f-5014-47d6-b4b3-f299380aa688": {
+        "question": "While performing repetitive actions, were there any key deviations that had significant impact on the overall process? explain what was different about them and why they were important in the context of the video.",
+        "0": "While performing repetitive actions, there were no key deviations that had significant impact on the overall process.",
+        "1": "While performing repetitive actions, there was a key deviation that had a significant impact on the overall process. the character accidentally dropped one of the books.",
+        "2": "While performing repetitive actions, there was a key deviation that had a significant impact on the overall process. the character ran out of cleaning supplies.",
+        "3": "While performing repetitive actions, there was a key deviation that had a significant impact on the overall process. the character got tired and had to take a break.",
+        "4": "While performing repetitive actions, there was a key deviation that had a significant impact on the overall process. the character found a book that they were interested in and started reading it.",
+        "truth": 0
+    },
+    "05ad5736-88f5-42bb-ac9f-689e199c50de": {
+        "question": "Summarize the process c uses to prepare her brush for painting and how it contributes to the artwork's quality.",
+        "0": "C cleans the paint brush in her right hand in the small cup on the floor, which helps to keep the brush clean and free of debris.",
+        "1": "Skillfully, c mixes paint on the paint board using the brush in her right hand, which enables her to effortlessly create a wide variety of different colors and shades for her artwork.",
+        "2": "Skillfully, c picks paint from the paint board using the brush in her right hand, which conveniently allows her to apply paint gracefully onto the canvas.",
+        "3": "C loosens the color intensity on the paint brush in her right hand in the small cup on the floor, which allows her to create a more subtle and nuanced effect.",
+        "4": "Carefully, c paints with the paint brush skillfully on the art work displayed on the canvas, which is the ultimate, final step in the entire painting process.",
+        "truth": 3
+    },
+    "0725f410-3cf9-4f24-98ac-6610d1038ab1": {
+        "question": "Identify the critical steps taken by c to organize and prepare the engine oil for use on the lawn mower, and highlight the importance of these actions in the overall video narrative.",
+        "0": "The critical steps taken by c to organize and prepare the engine oil for use on the lawn mower were adjusting the torch light and hanging it on the rail.",
+        "1": "The critical steps taken by c to organize and prepare the engine oil for use on the lawn mower were opening the carton of engine oil and picking containers of engine oil from the carton.",
+        "2": "The critical steps diligently taken by c to efficiently organize and prepare the engine oil for optimal use on the lawn mower involved skillfully using the wrench on the lawn mower and subsequently removing the wrench from the lawn mower.",
+        "3": "The crucial steps executed by c to systematically organize and prepare the engine oil specifically for use on the lawn mower included walking into a designated store room and effortlessly carrying a carton of the essential engine oil.",
+        "4": "The vital critical steps carefully taken by c to effectively organize and efficiently prepare the engine oil for optimal use on the lawn mower included diligently dropping the carton of engine oil on the lawn mower and thoroughly cleaning the floor.",
+        "truth": 1
+    },
+    "080eb552-9103-4f3e-a7e9-3417c1c0bcec": {
+        "question": "What is the primary focus of activity in the video and how does interaction between c and the child contribute to this?",
+        "0": "C is making a hat. the child interacts with c by talking to her and occasionally touching the hat.",
+        "1": "C is making a sweater. the child interacts with c by talking to her and occasionally touching the sweater.",
+        "2": "C is making a pair of gloves. the child interacts with c by talking to her and occasionally touching the gloves.",
+        "3": "C is making a blanket. the child interacts with c by talking to her and occasionally touching the blanket.",
+        "4": "C is knitting a scarf. the child interacts with c by talking to her and occasionally touching the scarf.",
+        "truth": 4
+    }
+}
