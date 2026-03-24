@@ -37,17 +37,16 @@ The following image illustrates the case study and the overall method of our **H
 
 ## ⚙️ Installation
 
-
 **1. Clone the repository**
 ```bash
-git clone [https://github.com/YourUsername/HiCrew.git](https://github.com/YourUsername/HiCrew.git)
+git clone https://github.com/YourUsername/HiCrew.git
 cd HiCrew
 ````
 
 **2. Set up the environment**
 
 ```bash
-conda create -n hicrew python=3.10 -y
+conda create -n hicrew python=3.11 -y
 conda activate hicrew
 ```
 
@@ -55,8 +54,31 @@ conda activate hicrew
 
 ```bash
 pip install crewai
-# TODO: Teammates will add other specific dependencies here
+pip install openai                       
+pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+pip install pandas                      
+pip install transformers==4.28.1         
+pip install accelerate  
+pip install opencv-python      
+pip install numba               
+pip install scikit-learn  
 ```
+
+**4. Update Kmeans-pytorch**
+
+```bash
+git clone https://github.com/subhadarship/kmeans_pytorch
+cd kmeans_pytorch
+```
+
+Please replace the init file in "kmeans_pytorch" folder with the file we provide in "./HybridTree/kmeans_pytorch" folder (this repo). And run the following command. 
+
+```bash
+pip install --editable .
+```
+
+**4. Download dataset**
+
 
 -----
 
