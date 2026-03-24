@@ -39,7 +39,7 @@ The following image illustrates the case study and the overall method of our **H
 
 **1. Clone the repository**
 ```bash
-git clone https://github.com/YourUsername/HiCrew.git
+git clone https://github.com/SYSUzzz/HiCrew.git
 cd HiCrew
 ````
 
@@ -77,8 +77,11 @@ Please replace the init file in "kmeans_pytorch" folder with the file we provide
 pip install --editable .
 ```
 
-**4. Download dataset**
+**5. Download dataset**
 
+[NExT-QA](https://github.com/doc-doc/NExT-QA)
+
+[EgoSchema](https://github.com/egoschema/EgoSchema)
 
 -----
 
